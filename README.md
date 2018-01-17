@@ -1,4 +1,6 @@
 # Go Auth Server
+[![go report card][grc-badge]][grc-url]
+[![license][license]](LICENSE)
 
 Authentication server in Go.
 
@@ -20,3 +22,6 @@ go buld -o edgex-auth
 
 ### License
 [Apache License, version 2.0](LICENSE)
+
+[grc-badge]: https://goreportcard.com/badge/github.com/drasko/edgex-auth
+[grc-url]: https://goreportcard.com/report/github.com/drasko/edgex-auth
