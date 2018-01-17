@@ -25,3 +25,4 @@ go buld -o edgex-auth
 
 [grc-badge]: https://goreportcard.com/badge/github.com/drasko/edgex-auth
 [grc-url]: https://goreportcard.com/report/github.com/drasko/edgex-auth
+[license]: https://img.shields.io/badge/license-Apache%20v2.0-blue.svg
