@@ -1,9 +1,5 @@
 # Go Auth Server
 
-[![License](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE)
-[![Build Status](https://travis-ci.org/mainflux/mainflux-auth.svg?branch=master)](https://travis-ci.org/mainflux/mainflux-auth)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Mainflux/mainflux-auth)](https://goreportcard.com/report/github.com/Mainflux/mainflux-auth)
-
 Authentication server in Go.
 
 ### Install
@@ -18,7 +14,7 @@ go buld -o edgex-auth
 ### Features
 - JWT
 - User account creation
-- Redis persistance
+- MongoDB persistance
 - Login and logout
 - Token revocation
 
