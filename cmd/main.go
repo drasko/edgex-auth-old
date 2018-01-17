@@ -24,7 +24,8 @@ import (
 )
 
 const (
-	port                   int    = 48071
+	authPort               int    = 8089
+	authHost               string = "0.0.0.0"
 	defMongoURL            string = "0.0.0.0"
 	defMongoUsername       string = ""
 	defMongoPassword       string = ""
@@ -33,11 +34,13 @@ const (
 	defMongoConnectTimeout int    = 5000
 	defMongoSocketTimeout  int    = 5000
 	envMongoURL            string = "AUTH_MONGO_URL"
-	envDistroHost          string = "AUTH_DISTRO_HOST"
+	envAuthHost          	 string = "AUTH_HOST_URL"
+	envAuthPort          	 string = "AUTH_PORT"
 )
 
 type config struct {
-	Port                int
+	AuthPort            int
+	AuthURL            	int
 	MongoURL            string
 	MongoUser           string
 	MongoPass           string
@@ -48,12 +51,14 @@ type config struct {
 }
 
 func main() {
-	cfg, authCfg := loadConfig()
+	cfg := loadConfig()
 
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
 	auth.InitLogger(logger)
+
+	auth.InitConfig(cfg.AuthHost, cfg.AuthPort)
 
 	ms, err := connectToMongo(cfg)
 	if err != nil {
@@ -79,9 +84,11 @@ func main() {
 	logger.Info("terminated", zap.String("error", c.Error()))
 }
 
-func loadConfig() (*config, *auth.Config) {
+func loadConfig() (*config) {
 
 	cfg := config{
+		AuthPort: strconv.Atoi(env(envAuthPort, strconv.Itoa(cfg.authPort))),
+		AuthHost: env(envAuthHost, cfg.authHost),
 		MongoURL:            env(envMongoURL, defMongoURL),
 		MongoUser:           defMongoUsername,
 		MongoPass:           defMongoPassword,
@@ -91,10 +98,7 @@ func loadConfig() (*config, *auth.Config) {
 		MongoSocketTimeout:  defMongoSocketTimeout,
 	}
 
-	authCfg := auth.GetDefaultConfig()
-	authCfg.DistroHost = env(envDistroHost, authCfg.DistroHost)
-
-	return &cfg, &authCfg
+	return &cfg
 }
 
 func env(key, fallback string) string {

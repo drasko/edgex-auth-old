@@ -39,7 +39,7 @@ func CheckPassword(plain, hashed string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain))
 }
 
-func registerUser(w http.ResponseWriter, r *http.Request) {
+func createUser(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -59,6 +59,18 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
+}
+
+func getAllUsers(w http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
+func getUserByID(w http.ResponseWriter, r *http.Request) {
+	// TODO
+}
+
+func deleteUser(w http.ResponseWriter, r *http.Request) {
+	// TODO
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -84,4 +96,8 @@ func login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
+}
+
+func authorize(w http.ResponseWriter, r *http.Request) {
+	// TODO
 }

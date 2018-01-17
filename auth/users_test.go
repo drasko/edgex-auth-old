@@ -1,4 +1,4 @@
-package domain_test
+package auth_test
 
 import (
 	"fmt"
