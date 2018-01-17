@@ -1,72 +1,127 @@
+//
+// Copyright (c) 2017
+// Mainflux
+// Cavium
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
 package main
 
 import (
-	"flag"
 	"fmt"
-	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
 
-	"github.com/drasko/go-auth/api"
-	"github.com/drasko/go-auth/config"
-	"github.com/drasko/go-auth/domain"
-	"github.com/drasko/go-auth/services"
+	"github.com/drasko/edgex-auth/auth"
+	"github.com/drasko/export-go/mongo"
+
+	"go.uber.org/zap"
+	"gopkg.in/mgo.v2"
 )
 
 const (
-	defaultConfig string = "/src/github.com/drasko/go-auth/config/config.toml"
-	httpPort      string = ":8180"
-	help          string = `
-		Usage: mainflux-auth [options]
-		Options:
-			-c, --config <file>         Configuration file
-			-h, --help                  Prints this message end exits`
+	port                   int    = 48071
+	defMongoURL            string = "0.0.0.0"
+	defMongoUsername       string = ""
+	defMongoPassword       string = ""
+	defMongoDatabase       string = "coredata"
+	defMongoPort           int    = 27017
+	defMongoConnectTimeout int    = 5000
+	defMongoSocketTimeout  int    = 5000
+	envMongoURL            string = "AUTH_MONGO_URL"
+	envDistroHost          string = "AUTH_DISTRO_HOST"
 )
 
-func main() {
-	opts := struct {
-		Config string
-		Help   bool
-	}{}
-
-	flag.StringVar(&opts.Config, "c", "", "Configuration file.")
-	flag.StringVar(&opts.Config, "config", "", "Configuration file.")
-	flag.BoolVar(&opts.Help, "h", false, "Show help.")
-	flag.BoolVar(&opts.Help, "help", false, "Show help.")
-
-	flag.Parse()
-
-	if opts.Help {
-		fmt.Printf("%s\n", help)
-		os.Exit(0)
-	}
-
-	if opts.Config == "" {
-		opts.Config = os.Getenv("GOPATH") + defaultConfig
-	}
-
-	cfg := config.Config{}
-	cfg.Load(opts.Config)
-
-	if cfg.SecretKey != "" {
-		domain.SetSecretKey(cfg.SecretKey)
-	}
-
-	services.StartCaching(cfg.RedisURL)
-	defer services.StopCaching()
-
-	fmt.Println(banner)
-	http.ListenAndServe(httpPort, api.Server())
+type config struct {
+	Port                int
+	MongoURL            string
+	MongoUser           string
+	MongoPass           string
+	MongoDatabase       string
+	MongoPort           int
+	MongoConnectTimeout int
+	MongoSocketTimeout  int
 }
 
-var banner = `
- _______    ______       ________   __  __   _________  ___   ___     
-/______/\  /_____/\     /_______/\ /_/\/_/\ /________/\/__/\ /__/\    
-\::::__\/__\:::_ \ \    \::: _  \ \\:\ \:\ \\__.::.__\/\::\ \\  \ \   
- \:\ /____/\\:\ \ \ \    \::(_)  \ \\:\ \:\ \  \::\ \   \::\/_\ .\ \  
-  \:\\_  _\/ \:\ \ \ \    \:: __  \ \\:\ \:\ \  \::\ \   \:: ___::\ \ 
-   \:\_\ \ \  \:\_\ \ \    \:.\ \  \ \\:\_\:\ \  \::\ \   \: \ \\::\ \
-    \_____\/   \_____\/     \__\/\__\/ \_____\/   \__\/    \__\/ \::\/
-                                                                      
+func main() {
+	cfg, authCfg := loadConfig()
 
-                == Sleep well, everything's locked ==
-`
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
+	auth.InitLogger(logger)
+
+	ms, err := connectToMongo(cfg)
+	if err != nil {
+		logger.Error("Failed to connect to Mongo.", zap.Error(err))
+		return
+	}
+	defer ms.Close()
+
+	repo := mongo.NewRepository(ms)
+	auth.InitMongoRepository(repo)
+
+	errs := make(chan error, 2)
+
+	auth.StartHTTPServer(*authCfg, errs)
+
+	go func() {
+		c := make(chan os.Signal)
+		signal.Notify(c, syscall.SIGINT)
+		errs <- fmt.Errorf("%s", <-c)
+	}()
+
+	c := <-errs
+	logger.Info("terminated", zap.String("error", c.Error()))
+}
+
+func loadConfig() (*config, *auth.Config) {
+
+	cfg := config{
+		MongoURL:            env(envMongoURL, defMongoURL),
+		MongoUser:           defMongoUsername,
+		MongoPass:           defMongoPassword,
+		MongoDatabase:       defMongoDatabase,
+		MongoPort:           defMongoPort,
+		MongoConnectTimeout: defMongoConnectTimeout,
+		MongoSocketTimeout:  defMongoSocketTimeout,
+	}
+
+	authCfg := auth.GetDefaultConfig()
+	authCfg.DistroHost = env(envDistroHost, authCfg.DistroHost)
+
+	return &cfg, &authCfg
+}
+
+func env(key, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	return value
+}
+
+func connectToMongo(cfg *config) (*mgo.Session, error) {
+	mongoDBDialInfo := &mgo.DialInfo{
+		Addrs:    []string{cfg.MongoURL + ":" + strconv.Itoa(cfg.MongoPort)},
+		Timeout:  time.Duration(cfg.MongoConnectTimeout) * time.Millisecond,
+		Database: cfg.MongoDatabase,
+		Username: cfg.MongoUser,
+		Password: cfg.MongoPass,
+	}
+
+	ms, err := mgo.DialWithInfo(mongoDBDialInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	ms.SetSocketTimeout(time.Duration(cfg.MongoSocketTimeout) * time.Millisecond)
+	ms.SetMode(mgo.Monotonic, true)
+
+	return ms, nil
+}
