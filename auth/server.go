@@ -18,9 +18,7 @@ import (
 func httpServer() http.Handler {
 	mux := bone.New()
 
-	// Status
 	mux.Get("/status", http.HandlerFunc(getStatus))
-
 	mux.Get("/users", http.HandlerFunc(getAllUsers))
 	mux.Get("/users/:id", http.HandlerFunc(getUserById))
 	mux.Post("/users", http.HandlerFunc(createUser))
