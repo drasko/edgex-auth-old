@@ -31,4 +31,4 @@ _testmain.go
 *.swp
 
 # Binary
-go-auth
+cmd/cmd

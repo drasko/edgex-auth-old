@@ -6,7 +6,7 @@
 
 package auth
 
-import "github.com/edgexfoundry/export-go/mongo"
+import "github.com/drasko/edgex-auth/mongo"
 
 var repo *mongo.Repository
 

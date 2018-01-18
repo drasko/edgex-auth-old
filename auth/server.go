@@ -28,11 +28,10 @@ func httpServer() http.Handler {
 	return mux
 }
 
-func StartHTTPServer(config Config, errChan chan error) {
-	cfg = config
+func StartHTTPServer(host string, port int, errChan chan error) {
 	go func() {
-		p := fmt.Sprintf(":%d", cfg.Port)
-		logger.Info("Starting Export Client", zap.String("url", p))
+		p := fmt.Sprintf("%s:%d", host, port)
+		logger.Info("Starting EdgeX Auth", zap.String("url", p))
 		errChan <- http.ListenAndServe(p, httpServer())
 	}()
 }

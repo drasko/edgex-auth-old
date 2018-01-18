@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/drasko/edgex-auth/auth"
-	"github.com/drasko/export-go/mongo"
+	"github.com/drasko/edgex-auth/mongo"
 
 	"go.uber.org/zap"
 	"gopkg.in/mgo.v2"
@@ -40,7 +40,7 @@ const (
 
 type config struct {
 	AuthPort            int
-	AuthURL            	int
+	AuthHost            string
 	MongoURL            string
 	MongoUser           string
 	MongoPass           string
@@ -51,14 +51,12 @@ type config struct {
 }
 
 func main() {
-	cfg := loadConfig()
-
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
 	auth.InitLogger(logger)
 
-	auth.InitConfig(cfg.AuthHost, cfg.AuthPort)
+	cfg := loadConfig(logger)
 
 	ms, err := connectToMongo(cfg)
 	if err != nil {
@@ -72,7 +70,7 @@ func main() {
 
 	errs := make(chan error, 2)
 
-	auth.StartHTTPServer(*authCfg, errs)
+	auth.StartHTTPServer(cfg.AuthHost, cfg.AuthPort, errs)
 
 	go func() {
 		c := make(chan os.Signal)
@@ -84,11 +82,17 @@ func main() {
 	logger.Info("terminated", zap.String("error", c.Error()))
 }
 
-func loadConfig() (*config) {
+func loadConfig(logger *zap.Logger) (*config) {
+
+	p, err := strconv.Atoi(env(envAuthPort, strconv.Itoa(authPort)))
+	if err != nil {
+		logger.Info("Failed to detect port number. Taking default.", zap.String("error", err.Error()))
+		p = authPort
+	}
 
 	cfg := config{
-		AuthPort: strconv.Atoi(env(envAuthPort, strconv.Itoa(cfg.authPort))),
-		AuthHost: env(envAuthHost, cfg.authHost),
+		AuthPort: 					 p,
+		AuthHost: 					 env(envAuthHost, authHost),
 		MongoURL:            env(envMongoURL, defMongoURL),
 		MongoUser:           defMongoUsername,
 		MongoPass:           defMongoPassword,

@@ -12,7 +12,7 @@ type Config struct {
 	Host string
 }
 
-var cfg Config
+var AuthCfg Config
 
 func InitConfig(host string, port int) Config {
 	return Config{
