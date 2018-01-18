@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"go.uber.org/zap"
+	uuid "github.com/satori/go.uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -17,8 +20,14 @@ type User struct {
 // all owned resources regardless of their type. Provided password in encrypted
 // using bcrypt algorithm.
 func CreateUser(username, password string) (User, error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		logger.Error("Failed to generate uuid", zap.Error(err))
+		return User{}, err
+	}
+
 	user := User{
-		Id:       uuid.NewV4().String(),
+		Id:       u.String(),
 		Username: username,
 	}
 
@@ -46,14 +55,15 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := &userReq{}
-	if err = json.Unmarshal(body, data); err != nil {
+	user := &User{}
+	if err = json.Unmarshal(body, user); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if username == "" || password == "" {
-		return user, &domain.AuthError{Code: http.StatusBadRequest}
+	if user.Username == "" || user.Password == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -80,18 +90,13 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := &userReq{}
-	if err = json.Unmarshal(body, data); err != nil {
+	user := &User{}
+	if err = json.Unmarshal(body, user); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	user, err := services.Login(data.Username, data.Password)
-	if err != nil {
-		authErr := err.(*domain.AuthError)
-		w.WriteHeader(authErr.Code)
-		return
-	}
+	// TODO: query mongoDB
 
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")

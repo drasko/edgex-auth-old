@@ -20,7 +20,7 @@ func httpServer() http.Handler {
 
 	mux.Get("/status", http.HandlerFunc(getStatus))
 	mux.Get("/users", http.HandlerFunc(getAllUsers))
-	mux.Get("/users/:id", http.HandlerFunc(getUserById))
+	mux.Get("/users/:id", http.HandlerFunc(getUserByID))
 	mux.Post("/users", http.HandlerFunc(createUser))
 	mux.Delete("/users/:id", http.HandlerFunc(deleteUser))
 	mux.Post("/login", http.HandlerFunc(login))
