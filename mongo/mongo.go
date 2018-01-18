@@ -14,7 +14,7 @@ import (
 // CollectionName - Collection name
 const (
 	DBName         string = "coredata"
-	CollectionName string = "exportConfiguration"
+	CollectionName string = "auth"
 )
 
 // Repository - get Mongo session

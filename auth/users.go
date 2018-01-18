@@ -7,6 +7,8 @@ import (
 	"go.uber.org/zap"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/edgexfoundry/export-go/mongo"
 )
 
 type User struct {
@@ -33,6 +35,7 @@ func CreateUser(username, password string) (User, error) {
 
 	p, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		logger.Error("Error encrypting user password", zap.Error(err))
 		return user, &AuthError{Code: http.StatusInternalServerError}
 	}
 
@@ -51,36 +54,121 @@ func CheckPassword(plain, hashed string) error {
 func createUser(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		logger.Error("Failed to read body for createUser()", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	user := &User{}
-	if err = json.Unmarshal(body, user); err != nil {
+	data := &User{}
+	if err = json.Unmarshal(body, data); err != nil {
+		logger.Error("Failed to unmarshal JSON", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if user.Username == "" || user.Password == "" {
+	if data.Username == "" || data.Password == "" {
+		logger.Error("Empty field (username or password)", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	user, err := CreateUser(data.Username, data.Password)
+	if err != nil {
+		logger.Error("Error creating user struct", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	s := repo.Session.Copy()
+	defer s.Close()
+	c := s.DB(mongo.DBName).C(mongo.CollectionName)
+
+	count, err := c.Find(bson.M{"name": user.Username}).Count()
+	if err != nil {
+		logger.Error("Failed to add user", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if count != 0 {
+		logger.Error("Username already taken: " + user.Username)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := c.Insert(user); err != nil {
+		logger.Error("Failed to insert user", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func getAllUsers(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	s := repo.Session.Copy()
+	defer s.Close()
+	c := s.DB(mongo.DBName).C(mongo.CollectionName)
+
+	users := []User{}
+	if err := c.Find(nil).All(&users); err != nil {
+		logger.Error("Failed to query all users", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	res, err := json.Marshal(users)
+	if err != nil {
+		logger.Error("Failed to query all users", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	io.WriteString(w, string(res))
 }
 
 func getUserByID(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	id := bone.GetValue(r, "id")
+
+	s := repo.Session.Copy()
+	defer s.Close()
+	c := s.DB(mongo.DBName).C(mongo.CollectionName)
+
+	user := User{}
+	if err := c.Find(bson.M{"id": id}).One(&user); err != nil {
+		logger.Error("Failed to query by id", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	res, err := json.Marshal(user)
+	if err != nil {
+		logger.Error("Failed to query by id", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	io.WriteString(w, string(res))
 }
 
 func deleteUser(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	id := bone.GetValue(r, "id")
+
+	s := repo.Session.Copy()
+	defer s.Close()
+	c := s.DB(mongo.DBName).C(mongo.CollectionName)
+
+	if err := c.Remove(bson.M{"id": id}); err != nil {
+		logger.Error("Failed to delete user", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +184,31 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: query mongoDB
+	if user.Username == "" || user.Password == "" {
+		logger.Error("Empty field (username or password)", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	test := &User{}
+	if err := c.Find(bson.M{"username": user.Username}).One(&test); err != nil {
+		logger.Error("Failed to query by id", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := CheckPassword(user.Password, test.Password); err != nil {
+		logger.Error("Incorrect password", zap.Error(err))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	jwt, err := CreateKey()
+	if err != nil {
+		logger.Error("Failed to create JWT", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
