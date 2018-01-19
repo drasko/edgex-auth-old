@@ -2,17 +2,22 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"go.uber.org/zap"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/go-zoo/bone"
+	"gopkg.in/mgo.v2/bson"
 
 	"github.com/edgexfoundry/export-go/mongo"
 )
 
 type User struct {
-	Id       string `json:"id"`
+	ID       string `json:"id"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -29,7 +34,7 @@ func CreateUser(username, password string) (User, error) {
 	}
 
 	user := User{
-		Id:       u.String(),
+		ID:       u.String(),
 		Username: username,
 	}
 
@@ -101,7 +106,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprintf("/users/%s", user.ID))
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -190,6 +195,10 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s := repo.Session.Copy()
+	defer s.Close()
+	c := s.DB(mongo.DBName).C(mongo.CollectionName)
+
 	test := &User{}
 	if err := c.Find(bson.M{"username": user.Username}).One(&test); err != nil {
 		logger.Error("Failed to query by id", zap.Error(err))
@@ -203,7 +212,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwt, err := CreateKey()
+	jwt, err := CreateKey(user.Username)
 	if err != nil {
 		logger.Error("Failed to create JWT", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -212,9 +221,28 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	io.WriteString(w, "token:" + jwt)
 }
 
 func authorize(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	token := strings.Split(r.Header.Get("Authorization"), " ")
+	if len(token) != 2 {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	claims, err := DecodeJwt(token[1])
+	if err != nil  {
+		logger.Error("Invalid token", zap.Error(err))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if claims.Issuer != Issuer {
+		logger.Error("Invalid token", zap.Error(err))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

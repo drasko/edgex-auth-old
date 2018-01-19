@@ -7,7 +7,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
-const issuer string = "mainflux"
+const Issuer string = "mainflux"
 
 var secretKey string = "mainflux-api-key"
 
@@ -17,8 +17,8 @@ func SetSecretKey(key string) {
 	secretKey = key
 }
 
-// SubjectOf extracts token's subject.
-func SubjectOf(key string) (string, error) {
+// DecodeJWT decodes jwt token
+func DecodeJwt(key string) (*jwt.StandardClaims, error) {
 	claims := jwt.StandardClaims{}
 
 	token, err := jwt.ParseWithClaims(
@@ -29,17 +29,18 @@ func SubjectOf(key string) (string, error) {
 		},
 	)
 
-	if err != nil || !token.Valid || claims.Issuer != issuer {
-		return "", &AuthError{http.StatusForbidden, err.Error()}
+	// Validate the token and return the custom claims
+	if claims, ok := token.Claims.(*jwt.StandardClaims); ok && token.Valid {
+		return claims, nil
+	} else {
+		return nil, err
 	}
-
-	return claims.Subject, nil
 }
 
 // CreateKey creates a JSON Web Token with a given subject.
 func CreateKey(subject string) (string, error) {
 	claims := jwt.StandardClaims{
-		Issuer:   issuer,
+		Issuer:   Issuer,
 		IssuedAt: time.Now().UTC().Unix(),
 		Subject:  subject,
 	}
