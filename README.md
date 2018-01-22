@@ -17,8 +17,8 @@ go buld -o edgex-auth
 - JWT
 - User account creation
 - MongoDB persistance
-- Login and logout
-- Token revocation
+- Login
+- Access (AuthN and AuthZ) check
 
 ### License
 [Apache License, version 2.0](LICENSE)
