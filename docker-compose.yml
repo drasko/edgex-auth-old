@@ -10,7 +10,7 @@ services:
   # NGINX
   ###
   nginx:
-    image: nginx:1.13-alpine
+    image: nginx:alpine
     container_name: edgex-nginx
     volumes:
       - $PWD/proxy/nginx/nginx.conf:/etc/nginx/nginx.conf
@@ -25,7 +25,7 @@ services:
   # MongoDB
   ###
   mongo:
-    image: mvertes/docker-alpine-mongo:latest
+    image: mongo:latest
     container_name: edgex-mongodb
     command: --smallfiles --nojournal
     ports:
