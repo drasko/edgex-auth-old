@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -19,22 +20,27 @@ func SetSecretKey(key string) {
 
 // DecodeJWT decodes jwt token
 func DecodeJwt(key string) (*jwt.StandardClaims, error) {
-	claims := jwt.StandardClaims{}
+	c := jwt.StandardClaims{}
 
 	token, err := jwt.ParseWithClaims(
 		key,
-		&claims,
+		&c,
 		func(val *jwt.Token) (interface{}, error) {
 			return []byte(secretKey), nil
 		},
 	)
-
-	// Validate the token and return the custom claims
-	if claims, ok := token.Claims.(*jwt.StandardClaims); ok && token.Valid {
-		return claims, nil
-	} else {
+	if err != nil {
 		return nil, err
 	}
+
+	// Validate the token and return the custom claims
+	claims, ok := token.Claims.(*jwt.StandardClaims)
+	if !ok || !token.Valid {
+		err := errors.New("Decoded invalid token")
+		return nil, err
+	}
+
+	return claims, nil
 }
 
 // CreateKey creates a JSON Web Token with a given subject.

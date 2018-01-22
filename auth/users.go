@@ -144,7 +144,7 @@ func getUserByID(w http.ResponseWriter, r *http.Request) {
 	user := User{}
 	if err := c.Find(bson.M{"id": id}).One(&user); err != nil {
 		logger.Error("Failed to query by id", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -179,12 +179,14 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 func login(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		logger.Error("Empty body", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	user := &User{}
 	if err = json.Unmarshal(body, user); err != nil {
+		logger.Error("Malformed JSON", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -202,7 +204,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	test := &User{}
 	if err := c.Find(bson.M{"username": user.Username}).One(&test); err != nil {
 		logger.Error("Failed to query by id", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -227,6 +229,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 func authorize(w http.ResponseWriter, r *http.Request) {
 	token := strings.Split(r.Header.Get("Authorization"), " ")
 	if len(token) != 2 {
+		logger.Error("Missing Authorizartion header")
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
